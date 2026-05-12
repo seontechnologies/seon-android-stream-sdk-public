@@ -25,7 +25,7 @@ The SEON Stream SDK continuously collects behavioural signals from your Android 
 
 > If an **optional** permission is not granted, not declared, or removed, the corresponding data points will simply be omitted. We recommend enabling as many of these permissions as your use-case allows to maximize detection accuracy.
 
-An API key issued by SEON is required. Contact your SEON account representative to obtain one.
+A token provided by SEON is required. Contact your SEON account representative to obtain one.
 
 ---
 
