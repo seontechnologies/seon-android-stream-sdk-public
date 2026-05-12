@@ -1,5 +1,4 @@
 # SEON Stream SDK - Android
-
 The SEON Stream SDK continuously collects behavioural signals from your Android application — touch patterns, typing dynamics, sensor data, network state and screen flows — and streams them to the SEON platform for fraud detection and risk assessment. The SDK supports both Jetpack Compose and legacy Android Views (Activities, Fragments, XML layouts).
 
 ---
@@ -17,6 +16,7 @@ The SEON Stream SDK continuously collects behavioural signals from your Android 
 > <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 > ```
 
+>
 > `READ_PHONE_STATE` is **not** declared by the SDK. If you want active call tracking by permission, add it to your app's manifest yourself:
 >
 > ```xml
@@ -63,19 +63,19 @@ The SDK is configured in two stages: a **global configuration** (set once at ini
 
 Use `SeonStreamGlobalConfig.Builder` to set the API token and the data-center region.
 
-| Method               | Description                                                | Default     |
-| -------------------- | ---------------------------------------------------------- | ----------- |
-| `withToken(String)`  | Sets the API token.                                        | —           |
+| Method | Description | Default |
+|---|---|---|
+| `withToken(String)` | Sets the API token. | — |
 | `withRegion(Region)` | Target region: `Region.EU`, `Region.US`, or `Region.APAC`. | `Region.EU` |
 
 #### Session Configuration
 
 Use `SeonStreamSessionConfig.Builder` to control per-session behavior.
 
-| Method                            | Description                                                                                                          | Default |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
-| `withMaxBackgroundDuration(long)` | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0`     |
-| `withLabel(String)`               | An optional label for the session (max 32 characters).                                                               | `null`  |
+| Method | Description | Default |
+|---|---|---|
+| `withMaxBackgroundDuration(long)` | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0` |
+| `withLabel(String)` | An optional label for the session (max 32 characters). | `null` |
 
 ### Initialization
 
@@ -118,9 +118,7 @@ SeonStream.getInstance().setToken("YOUR_API_TOKEN")
 ---
 
 ## Starting and stopping a session
-
 #### Starting a Session
-
 ```java
 // Java
 SeonStreamSessionConfig sessionConfig = new SeonStreamSessionConfig.Builder()
@@ -128,7 +126,7 @@ SeonStreamSessionConfig sessionConfig = new SeonStreamSessionConfig.Builder()
         .withLabel("checkout-flow")
         .build();
 
-SeonStream.getInstance().startSessionMonitoring(sessionConfig);
+SeonStream.getInstance().startStream(sessionConfig);
 ```
 
 ```kotlin
@@ -138,19 +136,19 @@ val sessionConfig = SeonStreamSessionConfig.Builder()
     .withLabel("checkout-flow")
     .build()
 
-SeonStream.getInstance().startSessionMonitoring(sessionConfig)
+SeonStream.getInstance().startStream(sessionConfig)
 ```
 
 #### Stopping a Session
 
 ```java
 // Java
-SeonStream.getInstance().finishSessionMonitoring();
+SeonStream.getInstance().finishStream();
 ```
 
 ```kotlin
 // Kotlin
-SeonStream.getInstance().finishSessionMonitoring()
+SeonStream.getInstance().finishStream()
 ```
 
 #### Custom Events
@@ -186,16 +184,15 @@ All SDK exceptions extend `SeonStreamException` (a `RuntimeException`). Errors a
 - **Synchronous** — Initialization and configuration errors (e.g. `initialize()`, tagging, listener management) are thrown directly and can be caught with a `try-catch` block.
 - **Asynchronous** — Errors that occur during an active session (e.g. starting, stopping, runtime failures) are delivered through the `SeonStreamListener.onFailure()` callback. See [Listening to Session Events](#listening-to-session-events) for details.
 
-| Exception                          | Thrown when                                                                                                                                                                                                                                                                                                                                                   | Delivery                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Exception                          | Thrown when                                                                                                                                                                                                                                                                                                                                                   | Delivery |
+|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|
 | `SeonStreamInitializeException`    | `initialize()` is called with invalid arguments or is called more than once, or `getInstance()` is called before initialization, or SDK initialization otherwise fails.                                                                                                                                                                                       | Synchronous (try-catch) |
-| `SeonStreamStartException`         | `startSessionMonitoring()` fails — e.g. no token set, session already running, invalid config, stream ID could not be generated, or an internal error.                                                                                                                                                                                                        | Async (`onFailure`)     |
-| `SeonStreamStopException`          | `finishSessionMonitoring()` fails — e.g. no session is currently running, or an internal error.                                                                                                                                                                                                                                                               | Async (`onFailure`)     |
+| `SeonStreamStartException`         | `startSessionMonitoring()` fails — e.g. no token set, session already running, invalid config, stream ID could not be generated, or an internal error.                                                                                                                                                                                                        | Async (`onStreamFinishedWithError`) |
+| `SeonStreamStopException`          | `finishSessionMonitoring()` fails — e.g. no session is currently running, or an internal error.                                                                                                                                                                                                                                                               | Async (`onStreamFinishedWithError`) |
 | `SeonStreamConfigurationException` | `SeonStreamGlobalConfig.Builder.build()` is called with an invalid region, `SeonStreamSessionConfig.Builder.build()` is called with invalid values (negative duration, duration exceeding 48 hours, or label longer than 32 characters), or `setToken()`, `tagActivity()`, `tagFragment()`, `tagViewElement()`, `addListener()`, or `removeListener()` fails. | Synchronous (try-catch) |
-| `SeonStreamCustomEventException`   | `createCustomEvent()` fails — e.g. name exceeds 32 characters, additional data exceeds 1024 characters, or an internal error.                                                                                                                                                                                                                                 | Async (`onFailure`)     |
-| `SeonStreamAuthException`          | The backend throws back a 401 error, so the provided api token is invalid                                                                                                                                                                                                                                                                                     | Async (`onFailure`)     |
-| `SeonStreamTimeoutException`       | The backend informs the client that it reached its session duration's hard limit                                                                                                                                                                                                                                                                              | Async (`onFailure`)     |
-
+| `SeonStreamCustomEventException`   | `createCustomEvent()` fails — e.g. name exceeds 32 characters, additional data exceeds 1024 characters, or an internal error.                                                                                                                                                                                                                                 | Async (`onStreamFinishedWithError`) |
+| `SeonStreamAuthException`          | The backend throws back a 401 error, so the provided api token is invalid                                                                                                                                                                                                                                                                                     | Async (`onStreamFinishedWithError`) |
+| `SeonStreamTimeoutException`       | The backend informs the client that it reached its session duration's hard limit                                                                                                                                                                                                                                                                              | Async (`onStreamFinishedWithError`) |
 #### Listening to Session Events
 
 Implement `SeonStreamListener` to receive callbacks on the main thread:
@@ -204,17 +201,17 @@ Implement `SeonStreamListener` to receive callbacks on the main thread:
 // Java
 SeonStreamListener listener = new SeonStreamListener() {
     @Override
-    public void onSessionStarted(String streamId) {
+    public void onStreamStarted(String streamId) {
         // Session is active — streamId can be sent to your backend
     }
 
     @Override
-    public void onSessionEnded() {
-        // Session was stopped by finishSessionMonitoring()
+    public void onStreamFinished() {
+        // Session was stopped by finishStream()
     }
 
     @Override
-    public void onFailure(SeonStreamException exception) {
+    public void onStreamFinishedWithError(SeonStreamException exception) {
         // An error occurred
     }
 };
@@ -225,15 +222,15 @@ SeonStream.getInstance().addListener(listener);
 ```kotlin
 // Kotlin
 val listener = object : SeonStreamListener {
-    override fun onSessionStarted(streamId: String) {
+    override fun onStreamStarted(streamId: String) {
         // Session is active — streamId can be sent to your backend
     }
 
-    override fun onSessionEnded() {
-        // Session was stopped by finishSessionMonitoring()
+    override fun onStreamFinished() {
+        // Session was stopped by finishStream()
     }
 
-    override fun onFailure(exception: SeonStreamException) {
+    override fun onStreamFinishedWithError(exception: SeonStreamException) {
         // An error occurred
     }
 }
@@ -292,10 +289,8 @@ LaunchedEffect(navController){
     SeonStream.getInstance().setComposeNavController(navController)
 }
 ```
-
 Call setComposeNavController(navController) as soon as the controller is available and before starting session monitoring.
-
-> **Important**: Compose route tracking is not enabled automatically.
+> **Important**: Compose route tracking is not enabled automatically. 
 > If you register the controller after calling startSessionMonitoring(), subsequent route changes will still be tracked, but the initial visible route may be missed.
 
 ---
@@ -306,12 +301,11 @@ During an active session, the SDK automatically tracks Activity and Fragment lif
 
 Internally, the SDK registers the following system callbacks:
 
-| Callback                                     | Purpose                                     |
-| -------------------------------------------- | ------------------------------------------- |
-| `Application.ActivityLifecycleCallbacks`     | Monitors Activity resume/pause transitions. |
+| Callback | Purpose |
+|---|---|
+| `Application.ActivityLifecycleCallbacks` | Monitors Activity resume/pause transitions. |
 | `FragmentManager.FragmentLifecycleCallbacks` | Monitors Fragment resume/pause transitions. |
-| `NavController.OnDestinationChangedListener` | Tracks Compose navigation route changes.    |
-
+| `NavController.OnDestinationChangedListener` | Tracks Compose navigation route changes. |
 ---
 
 ## Touch Tracking
@@ -320,11 +314,10 @@ The SDK automatically captures touch interactions during an active session, incl
 
 Internally, the SDK wraps the following system callbacks:
 
-| Callback               | UI Framework | Purpose                                                                   |
-| ---------------------- | ------------ | ------------------------------------------------------------------------- |
+| Callback | UI Framework | Purpose |
+|---|---|---|
 | `View.OnTouchListener` | Legacy Views | Wraps the existing touch listener on each view to intercept touch events. |
-| `Window.Callback`      | Compose      | Wraps the Activity's window callback to intercept `dispatchTouchEvent`.   |
-
+| `Window.Callback` | Compose | Wraps the Activity's window callback to intercept `dispatchTouchEvent`. |
 ---
 
 ## Input Tracking
@@ -335,13 +328,13 @@ The SDK automatically monitors text input interactions during an active session,
 
 Internally, the SDK wraps or registers the following system callbacks:
 
-| Callback                     | UI Framework | Purpose                                                                          |
-| ---------------------------- | ------------ | -------------------------------------------------------------------------------- |
-| `TextWatcher`                | Legacy Views | Monitors text changes on `EditText` fields.                                      |
-| `View.OnFocusChangeListener` | Legacy Views | Wraps the existing focus listener to track focus gain/loss.                      |
-| `ActionMode.Callback`        | Legacy Views | Wraps the selection action mode callback to detect copy, paste, and cut actions. |
-| `OnReceiveContentListener`   | Legacy Views | Detects paste and drag-and-drop content insertion.                               |
-| `SemanticsListener`          | Compose      | Observes the Compose semantics tree for text and focus changes.                  |
+| Callback | UI Framework | Purpose |
+|---|---|---|
+| `TextWatcher` | Legacy Views | Monitors text changes on `EditText` fields. |
+| `View.OnFocusChangeListener` | Legacy Views | Wraps the existing focus listener to track focus gain/loss. |
+| `ActionMode.Callback` | Legacy Views | Wraps the selection action mode callback to detect copy, paste, and cut actions. |
+| `OnReceiveContentListener` | Legacy Views | Detects paste and drag-and-drop content insertion. |
+| `SemanticsListener` | Compose | Observes the Compose semantics tree for text and focus changes. |
 
 ---
 
@@ -365,44 +358,43 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 
 ### Screen auto-tagging
 
-| Scenario                 | Auto-tagged? | Name source                          | Example                        | Notes                                                                                                                        |
-| ------------------------ | ------------ | ------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Activity (Legacy Views)  | Yes          | Fully qualified class name           | `com.example.CheckoutActivity` | Override with `tagActivity()`.                                                                                               |
-| Fragment (Legacy Views)  | Yes          | Fully qualified class name           | `com.example.PaymentFragment`  | Override with `tagFragment()`. Only leaf fragments (no child fragments) generate events.                                     |
+| Scenario | Auto-tagged? | Name source | Example | Notes |
+|---|--------------|---|---|---|
+| Activity (Legacy Views) | Yes          | Fully qualified class name | `com.example.CheckoutActivity` | Override with `tagActivity()`. |
+| Fragment (Legacy Views) | Yes          | Fully qualified class name | `com.example.PaymentFragment` | Override with `tagFragment()`. Only leaf fragments (no child fragments) generate events. |
 | Compose navigation route | No           | Route name from the navigation graph | `"checkout"`, `"profile/{id}"` | You must call `setComposeNavController()` to enable route tracking. Without it, Compose screen transitions are not captured. |
 
 ### UI element auto-tagging
 
-| Scenario                                  | Auto-tagged? | Name source                | Example                                                                            | Notes                                                                          |
-| ----------------------------------------- | ------------ | -------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Legacy View with `android:id`             | Yes          | XML resource entry name    | `submit_button` from `android:id="@+id/submit_button"`                             | Override with `tagViewElement()`.                                              |
-| Legacy View **without** `android:id`      | No           | Appears as `UNKNOWN`       | `UNKNOWN`                                                                          | Assign an `android:id` in XML or call `tagViewElement()`.                      |
-| Compose element with `Modifier.testTag()` | Yes          | `testTag` value            | `"pay-btn"` from `Modifier.testTag("pay-btn")`                                     | Best option for stable, meaningful names.                                      |
-| Compose element with `contentDescription` | Yes          | `contentDescription` value | `"Submit order"` from `Modifier.semantics { contentDescription = "Submit order" }` | Used when no `testTag` is set.                                                 |
-| Compose `Text()` element                  | Yes          | Text content (truncated)   | `"Welcome back, John"` from `Text("Welcome back, John")`                           | Used when neither `testTag` nor `contentDescription` is set.                   |
-| Compose element with none of the above    | No           | -                          | ""                                                                                 | Add a `testTag` or `contentDescription` for the element to appear with a name. |
+| Scenario | Auto-tagged? | Name source               | Example | Notes |
+|---|---|---------------------------|--|---|
+| Legacy View with `android:id` | Yes | XML resource entry name   | `submit_button` from `android:id="@+id/submit_button"` | Override with `tagViewElement()`. |
+| Legacy View **without** `android:id` | No | Appears as `UNKNOWN`      | `UNKNOWN` | Assign an `android:id` in XML or call `tagViewElement()`. |
+| Compose element with `Modifier.testTag()` | Yes | `testTag` value           | `"pay-btn"` from `Modifier.testTag("pay-btn")` | Best option for stable, meaningful names. |
+| Compose element with `contentDescription` | Yes | `contentDescription` value | `"Submit order"` from `Modifier.semantics { contentDescription = "Submit order" }` | Used when no `testTag` is set. |
+| Compose `Text()` element | Yes | Text content (truncated)  | `"Welcome back, John"` from `Text("Welcome back, John")` | Used when neither `testTag` nor `contentDescription` is set. |
+| Compose element with none of the above | No | - | "" | Add a `testTag` or `contentDescription` for the element to appear with a name. |
 
 ### Input tracking
 
-| Scenario                                               | Tracked? | Notes                                                                          |
-| ------------------------------------------------------ | -------- | ------------------------------------------------------------------------------ |
-| `EditText` (Legacy Views)                              | Yes      | Focus, typing characteristics, copy/paste/cut, and drag-and-drop are captured. |
-| Custom input views (not extending `EditText`)          | No       | Only `EditText` instances are detected by the legacy input strategy.           |
-| Compose text fields (`TextField`, `OutlinedTextField`) | Yes      | Tracked via the Compose semantics tree.                                        |
-| Compose custom `Canvas`-based input                    | No       | Elements that do not expose semantics properties are invisible to the SDK.     |
+| Scenario | Tracked? | Notes |
+|---|---|---|
+| `EditText` (Legacy Views) | Yes | Focus, typing characteristics, copy/paste/cut, and drag-and-drop are captured. |
+| Custom input views (not extending `EditText`) | No | Only `EditText` instances are detected by the legacy input strategy. |
+| Compose text fields (`TextField`, `OutlinedTextField`) | Yes | Tracked via the Compose semantics tree. |
+| Compose custom `Canvas`-based input | No | Elements that do not expose semantics properties are invisible to the SDK. |
 
 ### Touch tracking
 
-| Scenario                           | Tracked? | Notes                                                                                             |
-| ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
-| Legacy Views — clickable views     | Yes      | Touch events are captured via `View.OnTouchListener` wrapping.                                    |
-| Legacy Views — non-clickable views | No       | Only views where `isClickable() == true` are tracked.                                             |
-| Compose elements                   | Yes      | Touch events are captured via `Window.Callback` wrapping and resolved against the semantics tree. |
+| Scenario | Tracked? | Notes |
+|---|---|---|
+| Legacy Views — clickable views | Yes | Touch events are captured via `View.OnTouchListener` wrapping. |
+| Legacy Views — non-clickable views | No | Only views where `isClickable() == true` are tracked. |
+| Compose elements | Yes | Touch events are captured via `Window.Callback` wrapping and resolved against the semantics tree. |
 
 ---
 
 ## Changelog
 
 ### 1.0.0
-
 - Initial release
