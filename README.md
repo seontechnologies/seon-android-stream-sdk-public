@@ -36,7 +36,7 @@ Add the dependency to your module-level `build.gradle` file.
 ```groovy
 // Groovy DSL
 dependencies {
-    implementation('io.seon.streamsdk:streamsdk:1.0.0') {
+    implementation('io.seon.streamsdk:streamsdk:1.1.0') {
         transitive = true
     }
 }
@@ -45,7 +45,7 @@ dependencies {
 ```kotlin
 // Kotlin DSL
 dependencies {
-    implementation("io.seon.streamsdk:streamsdk:1.0.0") {
+    implementation("io.seon.streamsdk:streamsdk:1.1.0") {
         isTransitive = true
     }
 }
@@ -57,16 +57,7 @@ dependencies {
 
 ### Configuration
 
-The SDK is configured in two stages: a **global configuration** (set once at initialization) and a **session configuration** (set each time you start a session).
-
-#### Global Configuration
-
-Use `SeonStreamGlobalConfig.Builder` to set the API token and the data-center region.
-
-| Method | Description | Default |
-|---|---|---|
-| `withToken(String)` | Sets the API token. | — |
-| `withRegion(Region)` | Target region: `Region.EU`, `Region.US`, or `Region.APAC`. | `Region.EU` |
+The configuration is passed to the sdk during start of a new stream (session).
 
 #### Session Configuration
 
@@ -74,6 +65,7 @@ Use `SeonStreamSessionConfig.Builder` to control per-session behavior.
 
 | Method | Description | Default |
 |---|---|---|
+| `authData(String)` | This is **required** to start a stream, can be gathered through the Seon's authentication endpoint. If this data becomes invalid for some reason, it has to be renewed manually. |  |
 | `withMaxBackgroundDuration(long)` | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0` |
 | `withLabel(String)` | An optional label for the session (max 32 characters). | `null` |
 
@@ -83,36 +75,14 @@ Call `SeonStream.initialize()` once — typically in your `Application.onCreate(
 
 ```java
 // Java
-SeonStreamGlobalConfig config = new SeonStreamGlobalConfig.Builder()
-        .withToken("YOUR_API_TOKEN")
-        .withRegion(Region.EU)
-        .build();
 
-SeonStream.initialize(this, config);
+SeonStream.initialize(this);
 ```
 
 ```kotlin
 // Kotlin
-val config = SeonStreamGlobalConfig.Builder()
-    .withToken("YOUR_API_TOKEN")
-    .withRegion(Region.EU)
-    .build()
 
-SeonStream.initialize(this, config)
-```
-
-#### Updating the Token
-
-If the token is not available at initialization time, you can set or update it later:
-
-```java
-// Java
-SeonStream.getInstance().setToken("YOUR_API_TOKEN");
-```
-
-```kotlin
-// Kotlin
-SeonStream.getInstance().setToken("YOUR_API_TOKEN")
+SeonStream.initialize(this)
 ```
 
 ---
@@ -121,9 +91,12 @@ SeonStream.getInstance().setToken("YOUR_API_TOKEN")
 #### Starting a Session
 ```java
 // Java
+String authData = fetchTokenFromBackend() // This is just an example
+
 SeonStreamSessionConfig sessionConfig = new SeonStreamSessionConfig.Builder()
-        .withMaxBackgroundDuration(60000)
-        .withLabel("checkout-flow")
+        .withAuthData(authData) //required
+        .withMaxBackgroundDuration(60000) //optional
+        .withLabel("checkout-flow") //optional
         .build();
 
 SeonStream.getInstance().startStream(sessionConfig);
@@ -131,9 +104,11 @@ SeonStream.getInstance().startStream(sessionConfig);
 
 ```kotlin
 // Kotlin
+val authData = fetchTokenFromBackend() // This is just an example
 val sessionConfig = SeonStreamSessionConfig.Builder()
-    .withMaxBackgroundDuration(60000)
-    .withLabel("checkout-flow")
+    .withAuthData(authData) //required
+    .withMaxBackgroundDuration(60000) //optional
+    .withLabel("checkout-flow") //optional
     .build()
 
 SeonStream.getInstance().startStream(sessionConfig)
@@ -189,10 +164,11 @@ All SDK exceptions extend `SeonStreamException` (a `RuntimeException`). Errors a
 | `SeonStreamInitializeException`    | `initialize()` is called with invalid arguments or is called more than once, or `getInstance()` is called before initialization, or SDK initialization otherwise fails.                                                                                                                                                                                       | Synchronous (try-catch) |
 | `SeonStreamStartException`         | `startSessionMonitoring()` fails — e.g. no token set, session already running, invalid config, stream ID could not be generated, or an internal error.                                                                                                                                                                                                        | Async (`onStreamFinishedWithError`) |
 | `SeonStreamStopException`          | `finishSessionMonitoring()` fails — e.g. no session is currently running, or an internal error.                                                                                                                                                                                                                                                               | Async (`onStreamFinishedWithError`) |
-| `SeonStreamConfigurationException` | `SeonStreamGlobalConfig.Builder.build()` is called with an invalid region, `SeonStreamSessionConfig.Builder.build()` is called with invalid values (negative duration, duration exceeding 48 hours, or label longer than 32 characters), or `setToken()`, `tagActivity()`, `tagFragment()`, `tagViewElement()`, `addListener()`, or `removeListener()` fails. | Synchronous (try-catch) |
+| `SeonStreamConfigurationException` | `SeonStreamSessionConfig.Builder.build()` is called with invalid values (invalid authData, negative duration, duration exceeding 48 hours, or label longer than 32 characters), or `tagActivity()`, `tagFragment()`, `tagViewElement()`, `addListener()`, or `removeListener()` fails. | Synchronous (try-catch) |
 | `SeonStreamCustomEventException`   | `createCustomEvent()` fails — e.g. name exceeds 32 characters, additional data exceeds 1024 characters, or an internal error.                                                                                                                                                                                                                                 | Async (`onStreamFinishedWithError`) |
 | `SeonStreamAuthException`          | The backend throws back a 401 error, so the provided api token is invalid                                                                                                                                                                                                                                                                                     | Async (`onStreamFinishedWithError`) |
 | `SeonStreamTimeoutException`       | The backend informs the client that it reached its session duration's hard limit                                                                                                                                                                                                                                                                              | Async (`onStreamFinishedWithError`) |
+
 #### Listening to Session Events
 
 Implement `SeonStreamListener` to receive callbacks on the main thread:
@@ -214,6 +190,11 @@ SeonStreamListener listener = new SeonStreamListener() {
     public void onStreamFinishedWithError(SeonStreamException exception) {
         // An error occurred
     }
+
+    @Override
+    public void onStreamAuthError() {
+        // The authData expired and has to be renewed manually
+    }
 };
 
 SeonStream.getInstance().addListener(listener);
@@ -231,6 +212,10 @@ val listener = object : SeonStreamListener {
     }
 
     override fun onStreamFinishedWithError(exception: SeonStreamException) {
+        // An error occurred
+    }
+
+    override fun onStreamAuthError() {
         // An error occurred
     }
 }
@@ -344,7 +329,6 @@ Internally, the SDK wraps or registers the following system callbacks:
 
 - **Default `maxBackgroundDuration` is `0`** — With the default value the session will not survive any time in the background. If you expect the session to persist across brief app switches (e.g. opening the camera or switching apps), set a positive value with `withMaxBackgroundDuration()`.
 
-- **Token must be set before starting a session** — If no token has been provided (either through `SeonStreamGlobalConfig` or `setToken()`) before calling `startSessionMonitoring()`, the start will fail asynchronously via the `onFailure` callback.
 
 - **Session config validation is synchronous** — `SeonStreamSessionConfig.Builder.build()` throws a `SeonStreamConfigurationException` immediately if the values are invalid (negative duration, duration exceeding 48 hours, or label longer than 32 characters). This is not delivered through `onFailure` — wrap the `build()` call in a try-catch if you use dynamic values.
 
@@ -395,6 +379,11 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 ---
 
 ## Changelog
+
+### 1.1.0
+- Added new authentication method
+- Exposed storage related errors
+- Fixed paste tracking related issues
 
 ### 1.0.0
 - Initial release
