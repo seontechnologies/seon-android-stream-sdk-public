@@ -6,6 +6,7 @@ The SEON Stream SDK continuously collects behavioural signals from your Android 
 ## Requirements
 
 - Android 7.0 or higher (API level 24)
+- SEON Stream SDK 1.1.0 or higher (minimum supported version)
 - `INTERNET` permission
 - _(optional)_ `ACCESS_NETWORK_STATE` permission for IP address change detection, proxy, and VPN detection
 - _(optional)_ `READ_PHONE_STATE` permission for active call tracking
@@ -25,11 +26,11 @@ The SEON Stream SDK continuously collects behavioural signals from your Android 
 
 > If an **optional** permission is not granted, not declared, or removed, the corresponding data points will simply be omitted. We recommend enabling as many of these permissions as your use-case allows to maximize detection accuracy.
 
-A token provided by SEON is required. Contact your SEON account representative to obtain one.
-
+Integrations authenticate with an **authData** token obtained from the SEON authentication API (contact your SEON account representative for access).
 ---
+## Getting started
 
-## Installation
+### Installation
 
 Add the dependency to your module-level `build.gradle` file.
 
@@ -53,22 +54,6 @@ dependencies {
 
 ---
 
-## Getting started
-
-### Configuration
-
-The configuration is passed to the sdk during start of a new stream (session).
-
-#### Session Configuration
-
-Use `SeonStreamSessionConfig.Builder` to control per-session behavior.
-
-| Method | Description | Default |
-|---|---|---|
-| `authData(String)` | This is **required** to start a stream, can be gathered through the Seon's authentication endpoint. If this data becomes invalid for some reason, it has to be renewed manually. |  |
-| `withMaxBackgroundDuration(long)` | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0` |
-| `withLabel(String)` | An optional label for the session (max 32 characters). | `null` |
-
 ### Initialization
 
 Call `SeonStream.initialize()` once — typically in your `Application.onCreate()` or main `Activity.onCreate()`.
@@ -85,9 +70,18 @@ SeonStream.initialize(this);
 SeonStream.initialize(this)
 ```
 
----
-
 ## Starting and stopping a session
+
+#### Session Configuration
+
+Use `SeonStreamSessionConfig.Builder` to control per-session behavior.
+
+| Method | Description | Default |
+|---|---|---|
+| `authData(String)` | This is **required** to start a stream, can be gathered through the Seon's authentication endpoint. If this data becomes invalid for some reason, it has to be renewed manually (see [Authentication](#authentication)). |  |
+| `withMaxBackgroundDuration(long)` | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0` |
+| `withLabel(String)` | An optional label for the session (max 32 characters). | `null` |
+
 #### Starting a Session
 ```java
 // Java
@@ -166,8 +160,8 @@ All SDK exceptions extend `SeonStreamException` (a `RuntimeException`). Errors a
 | `SeonStreamStopException`          | `finishSessionMonitoring()` fails — e.g. no session is currently running, or an internal error.                                                                                                                                                                                                                                                               | Async (`onStreamFinishedWithError`) |
 | `SeonStreamConfigurationException` | `SeonStreamSessionConfig.Builder.build()` is called with invalid values (invalid authData, negative duration, duration exceeding 48 hours, or label longer than 32 characters), or `tagActivity()`, `tagFragment()`, `tagViewElement()`, `addListener()`, or `removeListener()` fails. | Synchronous (try-catch) |
 | `SeonStreamCustomEventException`   | `createCustomEvent()` fails — e.g. name exceeds 32 characters, additional data exceeds 1024 characters, or an internal error.                                                                                                                                                                                                                                 | Async (`onStreamFinishedWithError`) |
-| `SeonStreamAuthException`          | The backend throws back a 401 error, so the provided api token is invalid                                                                                                                                                                                                                                                                                     | Async (`onStreamFinishedWithError`) |
 | `SeonStreamTimeoutException`       | The backend informs the client that it reached its session duration's hard limit                                                                                                                                                                                                                                                                              | Async (`onStreamFinishedWithError`) |
+| `SeonStreamStorageException`       | When there is a serious storage related issue, e.g. the storage is full.                                                                                                                                                                                                                                                                              | Async (`onStreamFinishedWithError`) |
 
 #### Listening to Session Events
 
@@ -234,6 +228,19 @@ SeonStream.getInstance().removeListener(listener);
 // Kotlin
 SeonStream.getInstance().removeListener(listener)
 ```
+
+---
+
+## Authentication
+
+> **Version note:** The `authData`-based authentication introduced in 1.1.0 is required for production integrations. Version 1.0.0 was an open preview release without this mechanism; **1.1.0 is the minimum supported version**.
+
+Each stream session is authorized with an **authData** value from the SEON authentication API. It is short-lived; your app should fetch a new one before starting a session and again after an auth failure.
+
+1. Your backend calls `POST {environment}/session-monitoring-api/v1/auth` with the header `X-API-KEY: <your api key>` and passes the response body to the app as the `authData` string. The API key must never be embedded in the mobile application.
+2. Pass `authData` in `SeonStreamSessionConfig.Builder` when calling `startStream(sessionConfig)`.
+3. The SDK extracts the session JWT and additional configuration from `authData` automatically.
+4. If the JWT inside `authData` expires and the backend rejects further uploads, the SDK stops the stream and calls `onStreamAuthError` callback (see [Error handling](#error-handling)). The stored session is **not** cleared on auth failure, so you can fetch a fresh `authData` and call `startStream(sessionConfig)` again with the **same `label`** to continue the session, as long as you are still within `maxBackgroundDuration`.
 
 ---
 
@@ -381,9 +388,11 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 ## Changelog
 
 ### 1.1.0
-- Added new authentication method
-- Exposed storage related errors
+**First production-ready release.**
+- `SeonStreamSessionConfig`'s `authData` replaces token: pass the opaque authData string from `GET /session-monitoring-api/v1/auth` to start a session.
+- Authentication failure ends the stream and calls `onStreamAuthError` callback, while preserving the session for resumption within maxBackgroundDuration
+- Expose storage related errors through `onStreamFinishedWithError` callback with `SeonStreamStorageException`
 - Fixed paste tracking related issues
 
 ### 1.0.0
-- Initial release
+- Initial open preview release — not supported for production use.
