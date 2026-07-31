@@ -56,7 +56,17 @@ dependencies {
 
 ### Initialization
 
-Call `SeonStream.initialize()` once — typically in your `Application.onCreate()` or main `Activity.onCreate()`.
+Starting from SDK version 1.2.0, the SDK initializes itself automatically via `SeonStreamInitProvider`, a `ContentProvider` that runs before `Application.onCreate()`. No manual `initialize()` call is required.
+
+If you need to control when initialization happens — for example, to conditionally initialize based on user consent — disable the auto-init provider in your app's manifest and call `SeonStream.initialize()` manually:
+
+```xml
+<provider
+    android:name="io.seon.streamsdk.SeonStreamInitProvider"
+    tools:node="remove" />
+```
+
+Then call `initialize()` yourself, typically in `Application.onCreate()` or your main `Activity.onCreate()`:
 
 ```java
 // Java
