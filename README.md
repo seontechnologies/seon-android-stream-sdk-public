@@ -37,7 +37,7 @@ Add the dependency to your module-level `build.gradle` file.
 ```groovy
 // Groovy DSL
 dependencies {
-    implementation('io.seon.streamsdk:streamsdk:1.1.0') {
+    implementation('io.seon.streamsdk:streamsdk:1.2.0') {
         transitive = true
     }
 }
@@ -46,7 +46,7 @@ dependencies {
 ```kotlin
 // Kotlin DSL
 dependencies {
-    implementation("io.seon.streamsdk:streamsdk:1.1.0") {
+    implementation("io.seon.streamsdk:streamsdk:1.2.0") {
         isTransitive = true
     }
 }
