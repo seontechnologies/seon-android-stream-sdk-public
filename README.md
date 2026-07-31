@@ -37,7 +37,7 @@ Add the dependency to your module-level `build.gradle` file.
 ```groovy
 // Groovy DSL
 dependencies {
-    implementation('io.seon.streamsdk:streamsdk:1.1.0') {
+    implementation('io.seon.streamsdk:streamsdk:1.2.0') {
         transitive = true
     }
 }
@@ -46,7 +46,7 @@ dependencies {
 ```kotlin
 // Kotlin DSL
 dependencies {
-    implementation("io.seon.streamsdk:streamsdk:1.1.0") {
+    implementation("io.seon.streamsdk:streamsdk:1.2.0") {
         isTransitive = true
     }
 }
@@ -56,7 +56,17 @@ dependencies {
 
 ### Initialization
 
-Call `SeonStream.initialize()` once — typically in your `Application.onCreate()` or main `Activity.onCreate()`.
+Starting from SDK version 1.2.0, the SDK initializes itself automatically via `SeonStreamInitProvider`, a `ContentProvider` that runs before `Application.onCreate()`. No manual `initialize()` call is required.
+
+If you need to control when initialization happens — for example, to conditionally initialize based on user consent — disable the auto-init provider in your app's manifest and call `SeonStream.initialize()` manually:
+
+```xml
+<provider
+    android:name="io.seon.streamsdk.SeonStreamInitProvider"
+    tools:node="remove" />
+```
+
+Then call `initialize()` yourself, typically in `Application.onCreate()` or your main `Activity.onCreate()`:
 
 ```java
 // Java
@@ -285,6 +295,60 @@ Call setComposeNavController(navController) as soon as the controller is availab
 > **Important**: Compose route tracking is not enabled automatically. 
 > If you register the controller after calling startSessionMonitoring(), subsequent route changes will still be tracked, but the initial visible route may be missed.
 
+### Form tagging
+
+Use `SeonFormTag` to group related input fields into a named form so they appear together on the SEON admin panel. Create one `SeonFormTag` instance per form and apply it to each field that belongs to that form.
+
+`SeonFormTag` takes three parameters:
+
+| Parameter | Required | Description |
+|---|---|---|
+| `id` | Yes | Unique identifier for the form. Case-insensitive; whitespace is replaced by `_`. Forms are grouped by this id on the admin panel. |
+| `numberOfElements` | Yes | Total number of fields that make up this form. |
+| `displayName` | No | Human-readable name shown on the admin panel. Defaults to `null`. |
+> You can create more instances as well, because in the background we use the provided `id` value.
+
+#### Legacy Views
+
+Call `tagFormElement()` on the `SeonFormTag` instance for each `View` that belongs to the form. Pass `true` as the second argument to mark a field as optional.
+
+```java
+// Java
+SeonFormTag loginForm = new SeonFormTag("login_form", 2, "Login Form");
+loginForm.tagFormElement(usernameEditText);
+loginForm.tagFormElement(passwordEditText, true); // optional field
+```
+
+```kotlin
+// Kotlin
+val loginForm = SeonFormTag("login_form", 2, "Login Form")
+loginForm.tagFormElement(usernameEditText)
+loginForm.tagFormElement(passwordEditText, true) // optional field
+```
+
+#### Compose
+
+Use the `seonTagForm` `Modifier` extension to associate a composable with a form. Pass `optional = true` to mark a field as optional.
+
+```kotlin
+// Kotlin
+val loginForm = remember { SeonFormTag("login_form", 2, "Login Form") }
+
+TextField(
+    value = username,
+    onValueChange = { username = it },
+    modifier = Modifier.seonTagForm(loginForm)
+)
+
+TextField(
+    value = password,
+    onValueChange = { password = it },
+    modifier = Modifier.seonTagForm(loginForm, optional = true)
+)
+```
+
+> **Note:** `tagFormElement()` and `seonTagForm` can be combined with `tagViewElement()` / `testTag()` on the same view — form tagging and element naming are independent.
+
 ---
 
 ## Screen (Activity and Fragment) Tracking
@@ -387,11 +451,17 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 
 ## Changelog
 
+### 1.2.0
+- Added custom `android.content.ContentProvider` to initialize SDK automatically as soon as possible
+- Added `SeonFormTag` class to define custom forms
+- Improved network transmission logic
+- Improved error handling
+
 ### 1.1.0
 **First production-ready release.**
 - `SeonStreamSessionConfig`'s `authData` replaces token: pass the opaque authData string from `GET /session-monitoring-api/v1/auth` to start a session.
 - Authentication failure ends the stream and calls `onStreamAuthError` callback, while preserving the session for resumption within maxBackgroundDuration
-- Expose storage related errors through `onStreamFinishedWithError` callback with `SeonStreamStorageException`
+- Exposed storage related errors through `onStreamFinishedWithError` callback with `SeonStreamStorageException`
 - Fixed paste tracking related issues
 
 ### 1.0.0
