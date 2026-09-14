@@ -37,7 +37,7 @@ Add the dependency to your module-level `build.gradle` file.
 ```groovy
 // Groovy DSL
 dependencies {
-    implementation('io.seon.streamsdk:streamsdk:1.2.0') {
+    implementation('io.seon.streamsdk:streamsdk:1.3.0') {
         transitive = true
     }
 }
@@ -46,7 +46,7 @@ dependencies {
 ```kotlin
 // Kotlin DSL
 dependencies {
-    implementation("io.seon.streamsdk:streamsdk:1.2.0") {
+    implementation("io.seon.streamsdk:streamsdk:1.3.0") {
         isTransitive = true
     }
 }
@@ -275,7 +275,23 @@ SeonStream.tagViewElement(submitButton, "submit-btn")
 ```
 
 ### Compose Navigation Support
+If your app uses Jetpack Compose navigation and the package `androidx.navigation.navigation-compose` implemented, wrap the `NavHostController` with `NavHostControllerWrapper` and pass it to the SDK, so it can track route changes:
+```java
+// Java
+// obtain navController from your Compose host
+SeonStream.getInstance().setComposeNavController(new NavHostControllerWrapper(navController));
+```
 
+```kotlin
+// Kotlin
+val navController = rememberNavController()
+LaunchedEffect(navController){
+    SeonStream.getInstance().setComposeNavController(NavHostControllerWrapper(navController))
+}
+```
+> **Important**: Dont use the wrapper if you do not have the package `androidx.navigation.navigation-compose` implemented
+
+#### **Before SDK version 1.3.0**
 If your app uses Jetpack Compose navigation, pass the `NavHostController` so the SDK can track route changes:
 
 ```java
@@ -291,6 +307,9 @@ LaunchedEffect(navController){
     SeonStream.getInstance().setComposeNavController(navController)
 }
 ```
+
+---
+
 Call setComposeNavController(navController) as soon as the controller is available and before starting session monitoring.
 > **Important**: Compose route tracking is not enabled automatically. 
 > If you register the controller after calling startSessionMonitoring(), subsequent route changes will still be tracked, but the initial visible route may be missed.
@@ -450,6 +469,11 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 ---
 
 ## Changelog
+
+### 1.3.0
+- Changed `androidx.navigation.navigation-compose` as an optional dependency
+- Changed `setComposeNavController` parameter type to `NavHostControllerWrapper`
+- Increased target API level to **37**
 
 ### 1.2.0
 - Added custom `android.content.ContentProvider` to initialize SDK automatically as soon as possible
