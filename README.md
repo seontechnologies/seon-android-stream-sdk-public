@@ -470,6 +470,9 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 
 ## Changelog
 
+### 1.3.1
+- Fixed minor internal bugs
+
 ### 1.3.0
 - Changed `androidx.navigation.navigation-compose` as an optional dependency
 - Changed `setComposeNavController` parameter type to `NavHostControllerWrapper`
