@@ -37,7 +37,7 @@ Add the dependency to your module-level `build.gradle` file.
 ```groovy
 // Groovy DSL
 dependencies {
-    implementation('io.seon.streamsdk:streamsdk:1.3.0') {
+    implementation('io.seon.streamsdk:streamsdk:1.3.2') {
         transitive = true
     }
 }
@@ -46,7 +46,7 @@ dependencies {
 ```kotlin
 // Kotlin DSL
 dependencies {
-    implementation("io.seon.streamsdk:streamsdk:1.3.0") {
+    implementation("io.seon.streamsdk:streamsdk:1.3.2") {
         isTransitive = true
     }
 }
@@ -469,6 +469,8 @@ The SDK automatically assigns names to screens and UI elements where possible. T
 ---
 
 ## Changelog
+### 1.3.2
+- Fixed minor internal bugs
 
 ### 1.3.1
 - Fixed minor internal bugs
