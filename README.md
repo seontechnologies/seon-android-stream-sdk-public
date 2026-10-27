@@ -582,10 +582,7 @@ In this mode the SDK no longer tracks UI elements on its own. The elements tagge
 
 ## Common integration difficulties
 
-- **Late initialization or session start** — The SDK registers Activity lifecycle callbacks during `initialize()`, but events are only recorded once `startSessionMonitoring()` is called. If you initialize or start the session after the first Activity has already resumed, that screen will not appear in the session timeline. Call `initialize()` in `Application.onCreate()` and start the session as early as possible.
-
 - **Default `maxBackgroundDuration` is `0`** — With the default value the session will not survive any time in the background. If you expect the session to persist across brief app switches (e.g. opening the camera or switching apps), set a positive `maxBackgroundDuration`.
-
 
 - **Session config validation happens on start** — The `SeonStreamSessionConfig` constructor does not validate its values. Invalid values (negative duration, duration exceeding 48 hours, label longer than 32 characters, or malformed authData) are reported asynchronously after `startStream()` is called, so register a `SeonStreamListener` to detect them.
 
