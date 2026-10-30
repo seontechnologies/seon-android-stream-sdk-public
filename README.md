@@ -1,5 +1,5 @@
 # SEON Stream SDK - Android
-The SEON Stream SDK continuously collects behavioural signals from your Android application — touch patterns, typing dynamics, sensor data, network state and screen flows — and streams them to the SEON platform for fraud detection and risk assessment. The SDK supports both Jetpack Compose and legacy Android Views (Activities, Fragments, XML layouts).
+The SEON Stream SDK continuously collects behavioural signals from your Android application — touch patterns, typing dynamics, sensor data, network state and screen flows — and streams them to the SEON platform for fraud detection and risk assessment. The SDK supports both Jetpack Compose and legacy Android Views (Activities, XML layouts).
 
 ---
 
@@ -93,9 +93,7 @@ Features to control:
 | Feature | Description | Default state |
 |---|---|--|
 | automaticScreenTracking | Automatically tracks screens (Activities). When disabled, report screens manually with `SeonStream.getInstance().changeScreen()`. | `true` |
-| automaticViewTracking | Automatically tracks UI elements (touch, focus, typing, clipboard events). When disabled, only elements tagged with `SeonStream.tagViewElement()` / `Modifier.seonTagView()` are tracked. | `true` |
-
-See [Manual tracking](#manual-tracking) for details.
+| automaticViewTracking | Automatically tracks UI elements (touch, focus, typing, clipboard events). When disabled, only elements tagged with `SeonStream.tagViewElement()` or `Modifier.seonTagView()` are tracked. | `true` |
 
 ```java
 // Java
@@ -279,8 +277,6 @@ SeonStream.getInstance().removeListener(listener)
 ---
 
 ## Authentication
-
-> **Version note:** The `authData`-based authentication introduced in 1.1.0 is required for production integrations. Version 1.0.0 was an open preview release without this mechanism; **1.1.0 is the minimum supported version**.
 
 Each stream session is authorized with an **authData** value from the SEON authentication API. It is short-lived; your app should fetch a new one before starting a session and again after an auth failure.
 
