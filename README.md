@@ -1,5 +1,5 @@
 # SEON Stream SDK - Android
-The SEON Stream SDK continuously collects behavioural signals from your Android application — touch patterns, typing dynamics, sensor data, network state and screen flows — and streams them to the SEON platform for fraud detection and risk assessment. The SDK supports both Jetpack Compose and legacy Android Views (Activities, Fragments, XML layouts).
+The SEON Stream SDK continuously collects behavioural signals from your Android application — touch patterns, typing dynamics, sensor data, network state and screen flows — and streams them to the SEON platform for fraud detection and risk assessment. The SDK supports both Jetpack Compose and legacy Android Views (Activities, XML layouts).
 
 ---
 
@@ -27,7 +27,9 @@ The SEON Stream SDK continuously collects behavioural signals from your Android 
 > If an **optional** permission is not granted, not declared, or removed, the corresponding data points will simply be omitted. We recommend enabling as many of these permissions as your use-case allows to maximize detection accuracy.
 
 Integrations authenticate with an **authData** token obtained from the SEON authentication API (contact your SEON account representative for access).
+
 ---
+
 ## Getting started
 
 ### Installation
@@ -37,7 +39,7 @@ Add the dependency to your module-level `build.gradle` file.
 ```groovy
 // Groovy DSL
 dependencies {
-    implementation('io.seon.streamsdk:streamsdk:1.3.2') {
+    implementation('io.seon.streamsdk:streamsdk:2.0.0') {
         transitive = true
     }
 }
@@ -46,7 +48,7 @@ dependencies {
 ```kotlin
 // Kotlin DSL
 dependencies {
-    implementation("io.seon.streamsdk:streamsdk:1.3.2") {
+    implementation("io.seon.streamsdk:streamsdk:2.0.0") {
         isTransitive = true
     }
 }
@@ -56,7 +58,7 @@ dependencies {
 
 ### Initialization
 
-Starting from SDK version 1.2.0, the SDK initializes itself automatically via `SeonStreamInitProvider`, a `ContentProvider` that runs before `Application.onCreate()`. No manual `initialize()` call is required.
+The SDK initializes itself automatically via `SeonStreamInitProvider`, a `ContentProvider` that runs before `Application.onCreate()`. No manual `initialize()` call is required.
 
 If you need to control when initialization happens — for example, to conditionally initialize based on user consent — disable the auto-init provider in your app's manifest and call `SeonStream.initialize()` manually:
 
@@ -80,28 +82,63 @@ SeonStream.initialize(this);
 SeonStream.initialize(this)
 ```
 
+#### Feature Configuration
+
+The `SeonStream.initialize()` accepts an optional `SeonFeatureConfig` that controls SDK-wide behavior.
+
+The automatic initialization via `SeonStreamInitProvider` always uses the default configuration. To pass a custom `SeonFeatureConfig`, remove the provider from your manifest as described above and initialize the SDK manually. Only the first `initialize()` call takes effect, so if the provider is not removed, your custom configuration is ignored.
+
+Features to control:
+
+| Feature | Description | Default state |
+|---|---|--|
+| automaticScreenTracking | Automatically tracks screens (Activities). When disabled, report screens manually with `SeonStream.getInstance().changeScreen()`. | `true` |
+| automaticViewTracking | Automatically tracks UI elements (touch, focus, typing, clipboard events). When disabled, only elements tagged with `SeonStream.tagViewElement()` or `Modifier.seonTagView()` are tracked. | `true` |
+
+```java
+// Java
+
+SeonFeatureConfig featureConfig = new SeonFeatureConfig.Builder()
+        .withAutomaticScreenTrackingEnabled(false)
+        .withAutomaticViewTrackingEnabled(false)
+        .build();
+
+SeonStream.initialize(this, featureConfig);
+```
+
+```kotlin
+// Kotlin
+
+val featureConfig = SeonFeatureConfig.Builder()
+    .withAutomaticScreenTrackingEnabled(false)
+    .withAutomaticViewTrackingEnabled(false)
+    .build()
+
+SeonStream.initialize(this, featureConfig)
+```
+
 ## Starting and stopping a session
 
 #### Session Configuration
 
-Use `SeonStreamSessionConfig.Builder` to control per-session behavior.
+Create a `SeonStreamSessionConfig` to control per-session behavior. It is constructed directly with the following parameters:
 
-| Method | Description | Default |
+| Parameter | Description | Default |
 |---|---|---|
-| `authData(String)` | This is **required** to start a stream, can be gathered through the Seon's authentication endpoint. If this data becomes invalid for some reason, it has to be renewed manually (see [Authentication](#authentication)). |  |
-| `withMaxBackgroundDuration(long)` | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0` |
-| `withLabel(String)` | An optional label for the session (max 32 characters). | `null` |
+| `authData` (`String`) | This is **required** to start a stream, can be gathered through the Seon's authentication endpoint. If this data becomes invalid for some reason, it has to be renewed manually (see [Authentication](#authentication)). |  |
+| `maxBackgroundDuration` (`long`) | Maximum time (in ms) the session stays alive while the app is in the background. Must be between `0` and `48 hours`. | `0` |
+| `label` (`String`) | An optional label for the session (max 32 characters). | `null` |
 
 #### Starting a Session
 ```java
 // Java
 String authData = fetchTokenFromBackend() // This is just an example
 
-SeonStreamSessionConfig sessionConfig = new SeonStreamSessionConfig.Builder()
-        .withAuthData(authData) //required
-        .withMaxBackgroundDuration(60000) //optional
-        .withLabel("checkout-flow") //optional
-        .build();
+SeonStreamSessionConfig sessionConfig = new SeonStreamSessionConfig(
+        authData,        // required
+        60000,           // maxBackgroundDuration
+        "checkout-flow"  // label, nullable
+);
 
 SeonStream.getInstance().startStream(sessionConfig);
 ```
@@ -109,11 +146,11 @@ SeonStream.getInstance().startStream(sessionConfig);
 ```kotlin
 // Kotlin
 val authData = fetchTokenFromBackend() // This is just an example
-val sessionConfig = SeonStreamSessionConfig.Builder()
-    .withAuthData(authData) //required
-    .withMaxBackgroundDuration(60000) //optional
-    .withLabel("checkout-flow") //optional
-    .build()
+val sessionConfig = SeonStreamSessionConfig(
+    authData,        // required
+    60000,           // maxBackgroundDuration
+    "checkout-flow"  // label, nullable
+)
 
 SeonStream.getInstance().startStream(sessionConfig)
 ```
@@ -158,20 +195,27 @@ val running = SeonStream.getInstance().isRunning
 
 ### Error Handling
 
-All SDK exceptions extend `SeonStreamException` (a `RuntimeException`). Errors are delivered through two channels depending on when they occur:
+All SDK exceptions extend `SeonStreamException` (a `RuntimeException`). Errors are delivered through three channels depending on when they occur:
 
 - **Synchronous** — Initialization and configuration errors (e.g. `initialize()`, tagging, listener management) are thrown directly and can be caught with a `try-catch` block.
-- **Asynchronous** — Errors that occur during an active session (e.g. starting, stopping, runtime failures) are delivered through the `SeonStreamListener.onFailure()` callback. See [Listening to Session Events](#listening-to-session-events) for details.
+- **Asynchronous in `onStreamFinished`** — Errors that occur at the end of an active session, or that cause the active session to stop are delivered through the `SeonStreamListener.onStreamFinished` callback. See [Listening to Session Events](#listening-to-session-events) for details.
+- **Asynchronous in `onStreamError`** — Errors that occur during an active session but do not stop the stream, or errors that occur during stream start are delivered through the `SeonStreamListener.onStreamError()` callback. See [Listening to Session Events](#listening-to-session-events) for details.
 
-| Exception                          | Thrown when                                                                                                                                                                                                                                                                                                                                                   | Delivery |
-|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|
-| `SeonStreamInitializeException`    | `initialize()` is called with invalid arguments or is called more than once, or `getInstance()` is called before initialization, or SDK initialization otherwise fails.                                                                                                                                                                                       | Synchronous (try-catch) |
-| `SeonStreamStartException`         | `startSessionMonitoring()` fails — e.g. no token set, session already running, invalid config, stream ID could not be generated, or an internal error.                                                                                                                                                                                                        | Async (`onStreamFinishedWithError`) |
-| `SeonStreamStopException`          | `finishSessionMonitoring()` fails — e.g. no session is currently running, or an internal error.                                                                                                                                                                                                                                                               | Async (`onStreamFinishedWithError`) |
-| `SeonStreamConfigurationException` | `SeonStreamSessionConfig.Builder.build()` is called with invalid values (invalid authData, negative duration, duration exceeding 48 hours, or label longer than 32 characters), or `tagActivity()`, `tagFragment()`, `tagViewElement()`, `addListener()`, or `removeListener()` fails. | Synchronous (try-catch) |
-| `SeonStreamCustomEventException`   | `createCustomEvent()` fails — e.g. name exceeds 32 characters, additional data exceeds 1024 characters, or an internal error.                                                                                                                                                                                                                                 | Async (`onStreamFinishedWithError`) |
-| `SeonStreamTimeoutException`       | The backend informs the client that it reached its session duration's hard limit                                                                                                                                                                                                                                                                              | Async (`onStreamFinishedWithError`) |
-| `SeonStreamStorageException`       | When there is a serious storage related issue, e.g. the storage is full.                                                                                                                                                                                                                                                                              | Async (`onStreamFinishedWithError`) |
+| Exception                                | Cause                                                                                                                                                                  | Reported via         |
+|------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------|
+| `SeonStreamInitializeException`          | `initialize()` is called with a `null` context or more than once, `getInstance()` is called before initialization, or the SDK fails to set up its trackers.            | try-catch            |
+| `SeonStreamInternalException`            | `tagActivity()`, `tagViewElement()`, `addListener()` or `removeListener()` fails internally.                                                          | try-catch            |
+| `SeonStreamAlreadyRunningException`      | `startSessionMonitoring()` is called while a session is already running.                                                                                               | `onStreamError()`    |
+| `SeonStreamSessionConfigException`       | `startSessionMonitoring()` is called with an invalid config: `authData` is null or invalid, the label is longer than 32 characters, or `maxBackgroundDuration` is not between 0 and 2 days. | `onStreamError()`    |
+| `SeonStreamStartException`               | Starting the session fails internally, e.g. the stream ID cannot be generated.                                                                                         | `onStreamError()`    |
+| `SeonStreamNotRunningException`          | `finishSessionMonitoring()` or `createCustomEvent()` is called while no session is running.                                                                            | `onStreamError()`    |
+| `SeonStreamCustomEventInvalidException`  | `createCustomEvent()` is called with a missing or too long name (max 32 characters) or too long additional data (max 1024 characters), or fails internally.            | `onStreamError()`    |
+| `SeonStreamRateLimitException`           | The backend rate limit is reached during an active session and data transmission is throttled. The session keeps running.                                              | `onStreamError()`    |
+| `SeonStreamAuthException`                | The auth token is rejected by the backend (e.g. expired) during an active session, which stops the session.                                                            | `onStreamFinished()` |
+| `SeonStreamSessionTimeoutException`      | The backend reports that the session reached its maximum duration, which stops the session.                                                                            | `onStreamFinished()` |
+| `SeonStreamIpBanException`               | The backend rejects the client because its IP address is banned, which stops the session.                                                                              | `onStreamFinished()` |
+| `SeonStreamStorageException`             | A serious local storage error occurs (e.g. the database insert fails or the storage is full), which stops the session.                                                 | `onStreamFinished()` |
+| `SeonStreamFinishException`              | An internal error occurs while stopping the session.                                                                                                                   | `onStreamFinished()` |
 
 #### Listening to Session Events
 
@@ -186,18 +230,13 @@ SeonStreamListener listener = new SeonStreamListener() {
     }
 
     @Override
-    public void onStreamFinished() {
-        // Session was stopped by finishStream()
+    public void onStreamFinished(SeonStreamCriticalException exception)) {
+        // Session was stopped, if exception is null the finish was successful.
     }
 
     @Override
-    public void onStreamFinishedWithError(SeonStreamException exception) {
-        // An error occurred
-    }
-
-    @Override
-    public void onStreamAuthError() {
-        // The authData expired and has to be renewed manually
+    public void onStreamError(SeonStreamNonCriticalException exception) {
+        // An error occured
     }
 };
 
@@ -211,15 +250,11 @@ val listener = object : SeonStreamListener {
         // Session is active — streamId can be sent to your backend
     }
 
-    override fun onStreamFinished() {
+    override fun onStreamFinished(exception: SeonStreamCriticalException) {
         // Session was stopped by finishStream()
     }
 
-    override fun onStreamFinishedWithError(exception: SeonStreamException) {
-        // An error occurred
-    }
-
-    override fun onStreamAuthError() {
+    override fun onStreamError(exception: SeonStreamNonCriticalException) {
         // An error occurred
     }
 }
@@ -243,39 +278,31 @@ SeonStream.getInstance().removeListener(listener)
 
 ## Authentication
 
-> **Version note:** The `authData`-based authentication introduced in 1.1.0 is required for production integrations. Version 1.0.0 was an open preview release without this mechanism; **1.1.0 is the minimum supported version**.
-
 Each stream session is authorized with an **authData** value from the SEON authentication API. It is short-lived; your app should fetch a new one before starting a session and again after an auth failure.
 
 1. Your backend calls `POST {environment}/session-monitoring-api/v1/auth` with the header `X-API-KEY: <your api key>` and passes the response body to the app as the `authData` string. The API key must never be embedded in the mobile application.
-2. Pass `authData` in `SeonStreamSessionConfig.Builder` when calling `startStream(sessionConfig)`.
+2. Pass `authData` to the `SeonStreamSessionConfig` constructor when calling `startStream(sessionConfig)`.
 3. The SDK extracts the session JWT and additional configuration from `authData` automatically.
 4. If the JWT inside `authData` expires and the backend rejects further uploads, the SDK stops the stream and calls `onStreamAuthError` callback (see [Error handling](#error-handling)). The stored session is **not** cleared on auth failure, so you can fetch a fresh `authData` and call `startStream(sessionConfig)` again with the **same `label`** to continue the session, as long as you are still within `maxBackgroundDuration`.
 
 ---
 
-## Tagging
+## Navigation tracking
 
-Tag UI elements with human-readable names so tracked interactions are easier to interpret in the SEON dashboard.
+Automatic screen tracking is enabled by default, and it is switched off with `withAutomaticScreenTrackingEnabled(false)` (see [Feature Configuration](#feature-configuration)).
 
-### Tagging Activities, Fragments, and Views
+### Automatic navigation tracking
 
-```java
-// Java
-SeonStream.tagActivity(activity, "checkout-screen");
-SeonStream.tagFragment(fragment, "payment-form");
-SeonStream.tagViewElement(submitButton, "submit-btn");
-```
+| Tracked | Legacy XML UI | Jetpack Compose |
+|---|---|---|
+| Activity appearances and disappearances | Yes | Yes |
+| Route changes | - | Yes, if set up with `setComposeNavController` |
+| Fragments | No | - |
+| Modals and dialogs | No | No |
 
-```kotlin
-// Kotlin
-SeonStream.tagActivity(activity, "checkout-screen")
-SeonStream.tagFragment(fragment, "payment-form")
-SeonStream.tagViewElement(submitButton, "submit-btn")
-```
+#### Compose navigation
 
-### Compose Navigation Support
-If your app uses Jetpack Compose navigation and the package `androidx.navigation.navigation-compose` implemented, wrap the `NavHostController` with `NavHostControllerWrapper` and pass it to the SDK, so it can track route changes:
+If your app uses Jetpack Compose navigation and the package `androidx.navigation.navigation-compose` implemented, wrap the `NavHostController` with `NavHostControllerWrapper` and pass it to the SDK, so it can track route changes. Call `setComposeNavController(navController)` as soon as the controller is available and before starting the session.
 ```java
 // Java
 // obtain navController from your Compose host
@@ -289,30 +316,174 @@ LaunchedEffect(navController){
     SeonStream.getInstance().setComposeNavController(NavHostControllerWrapper(navController))
 }
 ```
-> **Important**: Dont use the wrapper if you do not have the package `androidx.navigation.navigation-compose` implemented
+> **Important**: Dont use the wrapper if you do not have the package `androidx.navigation.navigation-compose` implemented.
+>
+> Compose route tracking is not enabled automatically.
+> If you register the controller after calling `startStream()`, subsequent route changes will still be tracked, but the initial visible route may be missed.
 
-#### **Before SDK version 1.3.0**
-If your app uses Jetpack Compose navigation, pass the `NavHostController` so the SDK can track route changes:
+#### Screen names
+
+The SDK derives the screen name automatically:
+
+| Scenario | Name source | Example |
+|---|---|---|
+| Activity | Tagged name → Activity label → fully qualified class name | `checkout-screen` → `Checkout` → `com.example.CheckoutActivity` |
+| Compose navigation route | Route from the navigation graph | `"checkout"`, `"profile/{id}"` |
+
+For an Activity the first available name in this order is used:
+
+1. **Tagged name** — set with `tagActivity()`.
+2. **Activity label** — the `android:label` of the Activity in your manifest, or the title set with `Activity.setTitle()`.
+3. **Class name** — the fully qualified class name, used when neither of the above exists.
+
+To override it, an Activity can be renamed with `tagActivity()`. Call it before the Activity appears on screen (e.g. in `onCreate()`), otherwise the first events are recorded with the label or class name.
 
 ```java
 // Java
-// obtain navController from your Compose host
-SeonStream.getInstance().setComposeNavController(navController);
+SeonStream.tagActivity(activity, "checkout-screen");
 ```
 
 ```kotlin
 // Kotlin
-val navController = rememberNavController()
-LaunchedEffect(navController){
-    SeonStream.getInstance().setComposeNavController(navController)
-}
+SeonStream.tagActivity(activity, "checkout-screen")
 ```
+
+Compose route names cannot be renamed, they always come from the navigation graph. Use a short, stable route name, or switch to [manual navigation tracking](#manual-navigation-tracking) if you need full control over the names.
+
+### Manual navigation tracking
+
+Disable automatic screen tracking, then call `changeScreen()` every time a new screen becomes visible. The argument is the screen name that is shown in the SEON dashboard.
+> Warning: You have to remove `SeonStreamInitProvider` from your manifest as described in [Initialization](#initialization), then call `initialize()` with your config.
+
+```java
+// Java
+SeonStream.getInstance().changeScreen("checkout-screen");
+```
+
+```kotlin
+// Kotlin
+SeonStream.getInstance().changeScreen("checkout-screen")
+```
+
+### Limitations
+
+| Scenario | Behaviour | Notes |
+|---|---|---|
+| `changeScreen()` with automatic screen tracking enabled | Ignored | Prevents duplicated screen events. Disable it with `withAutomaticScreenTrackingEnabled(false)`. |
+| `tagActivity()` with automatic screen tracking disabled | No effect | It only renames automatically tracked screens. Pass the name to `changeScreen()` instead. |
+| `changeScreen()` while no session is running | Not recorded | Call it for the initially visible screen right after `startStream()`. |
 
 ---
 
-Call setComposeNavController(navController) as soon as the controller is available and before starting session monitoring.
-> **Important**: Compose route tracking is not enabled automatically. 
-> If you register the controller after calling startSessionMonitoring(), subsequent route changes will still be tracked, but the initial visible route may be missed.
+## View Tracking
+
+Automatic view tracking is enabled by default, and it is switched off with `withAutomaticViewTrackingEnabled(false)` (see [Feature Configuration](#feature-configuration)). While it is enabled, the SDK tracks touches and text input on the UI elements of your app without additional integration code, and names them automatically.
+
+#### Touch tracking
+
+The SDK automatically captures touch interactions during an active session, including tap events, gestures, and screen coordinates.
+
+Internally, the SDK wraps the following system callbacks:
+
+| Callback | UI Framework | Purpose |
+|---|---|---|
+| `View.OnTouchListener` | Legacy XML UI | Wraps the existing touch listener on each view to intercept touch events. |
+| `Window.Callback` | Jetpack Compose | Wraps the Activity's window callback to intercept `dispatchTouchEvent`. |
+
+> **Important:** On Legacy XML UI only clickable elements are tracked automatically by the SDK.
+
+#### Input tracking
+
+The SDK automatically monitors text input interactions during an active session, including text field focus, input events, and typing characteristics.
+
+> **Privacy:** The SDK does not capture the actual values of input fields. Only interaction metadata (e.g. focus changes, typing characteristics, paste actions) is monitored, ensuring that sensitive information such as personal data or passwords is never collected.
+
+Internally, the SDK wraps or registers the following system callbacks:
+
+| Callback | UI Framework | Purpose |
+|---|---|---|
+| `TextWatcher` | Legacy XML UI | Monitors text changes on `EditText` fields. |
+| `View.OnFocusChangeListener` | Legacy XML UI | Wraps the existing focus listener to track focus gain/loss. |
+| `ActionMode.Callback` | Legacy XML UI | Wraps the selection action mode callback to detect copy, paste, and cut actions. |
+| `OnReceiveContentListener` | Legacy XML UI | Detects paste and drag-and-drop content insertion. |
+| `SemanticsListener` | Jetpack Compose | Observes the Compose semantics tree for text and focus changes. |
+
+#### UI element auto-tagging
+
+The SDK assigns a name and a type to every tracked UI element in the following order. Use [Tagging UI elements](#tagging-ui-elements) to override it.
+
+**Legacy XML UI**
+
+```
+Name:  seon override  →  android:id resource entry name  →  UNKNOWN
+Type:  seon override  →  view class  →  Unknown
+```
+
+**Jetpack Compose**
+
+```
+Name:  seon override  →  Modifier.testTag()  →  contentDescription  →  Text content (truncated)  →  empty
+Type:  seon override  →  semantics role  →  editable text / IME action  →  progress range  →  text  →  Unknown
+```
+
+The type is inferred as follows:
+
+| | Legacy XML UI (view class) | Jetpack Compose (semantics) |
+|---|---|---|
+| `TextInputField` | `EditText` | Editable text or IME action |
+| `Button` | `Button`, `ImageButton` | Role `Button` |
+| `Checkbox` | `CheckBox` | Role `Checkbox` or `TriStateCheckbox` |
+| `RadioButton` | `RadioButton` | Role `RadioButton` |
+| `Switch` | `Switch`, `SwitchCompat` | Role `Switch` |
+| `Slider` | `SeekBar` | Progress range |
+| `Dropdown` | `Spinner` | Role `DropdownList` |
+| `Image` | `ImageView` | Role `Image` |
+| `Label` | `TextView` | Has text |
+| `Unknown` | Anything else | Anything else |
+
+The more specific class is matched first, e.g. a `CheckBox` is a `Checkbox`, not a `Button`. If the type is wrong, for example a clickable `LinearLayout` that acts as a button, set it with [Tagging UI elements](#tagging-ui-elements).
+
+> **Note:** Legacy views without an `android:id` appear as `UNKNOWN`, and Compose elements with none of the sources appear with an empty name. Add a name to them for the element to be easy to identify.
+
+## Tagging UI elements
+
+By default the SDK names every UI element it tracks (see [UI element auto-tagging](#ui-element-auto-tagging)). A tag is applied the same way in both UI frameworks, but through a different API. Both take a `name` and an optional `type` (`SeonElementType`): `TEXT_INPUT_FIELD`, `BUTTON`, `CHECKBOX`, `RADIO_BUTTON`, `SWITCH`, `SLIDER`, `DROPDOWN`, `IMAGE`, `LABEL` or `UNKNOWN`. When the type is omitted it is inferred as described in [UI element auto-tagging](#ui-element-auto-tagging).
+
+#### Legacy XML UI
+
+Call `SeonStream.tagViewElement(view, name[, type])` on the `View` once it has been created, e.g. in `onCreate()` or `onViewCreated()`.
+
+```java
+// Java
+SeonStream.tagViewElement(usernameEditText, "username");
+SeonStream.tagViewElement(payButton, "pay_button", SeonElementType.BUTTON);
+```
+
+```kotlin
+// Kotlin
+SeonStream.tagViewElement(usernameEditText, "username")
+SeonStream.tagViewElement(payButton, "pay_button", SeonElementType.BUTTON)
+```
+
+#### Jetpack Compose
+
+Add the `Modifier.seonTagView(name, type)` extension to the composable.
+
+```kotlin
+// Kotlin
+TextField(
+    value = username,
+    onValueChange = { username = it },
+    modifier = Modifier.seonTagView("username")
+)
+
+Button(
+    onClick = onPay,
+    modifier = Modifier.seonTagView("pay_button", SeonElementType.BUTTON)
+) {
+    Text("Pay")
+}
+```
 
 ### Form tagging
 
@@ -327,7 +498,7 @@ Use `SeonFormTag` to group related input fields into a named form so they appear
 | `displayName` | No | Human-readable name shown on the admin panel. Defaults to `null`. |
 > You can create more instances as well, because in the background we use the provided `id` value.
 
-#### Legacy Views
+#### Legacy XML UI
 
 Call `tagFormElement()` on the `SeonFormTag` instance for each `View` that belongs to the form. Pass `true` as the second argument to mark a field as optional.
 
@@ -345,7 +516,7 @@ loginForm.tagFormElement(usernameEditText)
 loginForm.tagFormElement(passwordEditText, true) // optional field
 ```
 
-#### Compose
+#### Jetpack Compose
 
 Use the `seonTagForm` `Modifier` extension to associate a composable with a form. Pass `optional = true` to mark a field as optional.
 
@@ -368,107 +539,116 @@ TextField(
 
 > **Note:** `tagFormElement()` and `seonTagForm` can be combined with `tagViewElement()` / `testTag()` on the same view — form tagging and element naming are independent.
 
----
+### Manual view tracking
 
-## Screen (Activity and Fragment) Tracking
+Manual view tracking is enabled when automatic view tracking is switched off with `withAutomaticViewTrackingEnabled(false)` in `SeonFeatureConfig`. 
+> Warning: You have to remove `SeonStreamInitProvider` from your manifest as described in [Initialization](#initialization), then call `initialize()` with your config.
 
-During an active session, the SDK automatically tracks Activity and Fragment lifecycle transitions without additional integration code. Screen appearances, disappearances, and navigation events (including Compose routes, if it is set up by `setComposeNavController`) are captured and sent to the SEON platform.
+```java
+// Java
+SeonFeatureConfig featureConfig = new SeonFeatureConfig.Builder()
+        .withAutomaticViewTrackingEnabled(false)
+        .build();
 
-Internally, the SDK registers the following system callbacks:
+SeonStream.initialize(this, featureConfig);
+```
 
-| Callback | Purpose |
-|---|---|
-| `Application.ActivityLifecycleCallbacks` | Monitors Activity resume/pause transitions. |
-| `FragmentManager.FragmentLifecycleCallbacks` | Monitors Fragment resume/pause transitions. |
-| `NavController.OnDestinationChangedListener` | Tracks Compose navigation route changes. |
----
+```kotlin
+// Kotlin
+val featureConfig = SeonFeatureConfig.Builder()
+    .withAutomaticViewTrackingEnabled(false)
+    .build()
 
-## Touch Tracking
+SeonStream.initialize(this, featureConfig)
+```
 
-The SDK automatically captures touch interactions during an active session, including tap events, gestures, and screen coordinates. This data is used to build behavioural profiles for fraud detection. No additional integration is required.
+In this mode the SDK no longer tracks UI elements on its own. The elements tagged with [`tagViewElement()`](#legacy-xml-ui) or [`Modifier.seonTagView()`](#jetpack-compose) stay trackable: their touches are reported, and for text fields their focus, typing and clipboard events as well. Untagged elements are not reported, so tag every element you want to see in the session. The name and type of a tracked element come from its tag.
 
-Internally, the SDK wraps the following system callbacks:
+### Limitations
 
-| Callback | UI Framework | Purpose |
+| Scenario | Behaviour | Notes |
 |---|---|---|
-| `View.OnTouchListener` | Legacy Views | Wraps the existing touch listener on each view to intercept touch events. |
-| `Window.Callback` | Compose | Wraps the Activity's window callback to intercept `dispatchTouchEvent`. |
----
+| Untagged element with automatic view tracking disabled | Not reported | Tag every element you want to see with `tagViewElement()` / `seonTagView()`. |
+| Tagged element with an empty name | Not reported | Always pass a non-empty name. |
+| Element interacted with before it is tagged | Recorded with the default name | Tag the view before it is interacted with, e.g. in `onCreate()` or `onViewCreated()`. |
+| Compose `testTag()`, `contentDescription` or text with automatic view tracking disabled | Not used for naming | Only the name passed to `seonTagView()` is used. |
 
-## Input Tracking
-
-The SDK automatically monitors text input interactions during an active session, including text field focus, input events, and typing characteristics. These signals help detect anomalies such as automated or copy-pasted input. No additional integration is required.
-
-> **Privacy:** The SDK does not capture the actual values of input fields. Only interaction metadata (e.g. focus changes, typing characteristics, paste actions) is monitored, ensuring that sensitive information such as personal data or passwords is never collected.
-
-Internally, the SDK wraps or registers the following system callbacks:
-
-| Callback | UI Framework | Purpose |
-|---|---|---|
-| `TextWatcher` | Legacy Views | Monitors text changes on `EditText` fields. |
-| `View.OnFocusChangeListener` | Legacy Views | Wraps the existing focus listener to track focus gain/loss. |
-| `ActionMode.Callback` | Legacy Views | Wraps the selection action mode callback to detect copy, paste, and cut actions. |
-| `OnReceiveContentListener` | Legacy Views | Detects paste and drag-and-drop content insertion. |
-| `SemanticsListener` | Compose | Observes the Compose semantics tree for text and focus changes. |
 
 ---
 
 ## Common integration difficulties
 
-- **Late initialization or session start** — The SDK registers Activity and Fragment lifecycle callbacks during `initialize()`, but events are only recorded once `startSessionMonitoring()` is called. If you initialize or start the session after the first Activity has already resumed, that screen will not appear in the session timeline. Call `initialize()` in `Application.onCreate()` and start the session as early as possible.
+- **Default `maxBackgroundDuration` is `0`** — With the default value the session will not survive any time in the background. If you expect the session to persist across brief app switches (e.g. opening the camera or switching apps), set a positive `maxBackgroundDuration`.
 
-- **Default `maxBackgroundDuration` is `0`** — With the default value the session will not survive any time in the background. If you expect the session to persist across brief app switches (e.g. opening the camera or switching apps), set a positive value with `withMaxBackgroundDuration()`.
-
-
-- **Session config validation is synchronous** — `SeonStreamSessionConfig.Builder.build()` throws a `SeonStreamConfigurationException` immediately if the values are invalid (negative duration, duration exceeding 48 hours, or label longer than 32 characters). This is not delivered through `onFailure` — wrap the `build()` call in a try-catch if you use dynamic values.
+- **Session config validation happens on start** — The `SeonStreamSessionConfig` constructor does not validate its values. Invalid values (negative duration, duration exceeding 48 hours, label longer than 32 characters, or malformed authData) are reported asynchronously after `startStream()` is called, so register a `SeonStreamListener` to detect them.
 
 - **Tag screens and views early** — Tags are resolved when lifecycle and interaction events fire. If you tag an Activity or View after it has already appeared on screen, the initial events will be recorded with the default class name instead of the tag you assigned.
 
 ---
+## Migrating from 1.x to 2.0
 
-## Limitations & Auto-tagging Behaviour
+<details>
+<summary>Show the 1.x to 2.0 migration guide</summary>
 
-The SDK automatically assigns names to screens and UI elements where possible. The table below summarises what is auto-tagged, what requires manual intervention, and what is not supported.
+1. **Update the dependency** to `io.seon.streamsdk:streamsdk:2.0.0`.
+2. **Replace `SeonStreamSessionConfig.Builder`** with the constructor. `withAuthData()`, `withMaxBackgroundDuration()`, `withLabel()` and `build()` are removed.
+   ```kotlin
+   // 1.x
+   val config = SeonStreamSessionConfig.Builder()
+       .withAuthData(authData)
+       .withMaxBackgroundDuration(60000)
+       .withLabel("checkout-flow")
+       .build()
 
-### Screen auto-tagging
+   // 2.0
+   val config = SeonStreamSessionConfig(authData, 60000, "checkout-flow")
+   ```
+3. **Update your `SeonStreamListener`.** `onStreamFinished()`, `onStreamFinishedWithError()` and `onStreamAuthError()` are replaced:
+   ```
+   onStreamFinished()            ┐
+   onStreamFinishedWithError(e)  ├→  onStreamFinished(SeonStreamCriticalException)   null = successful finish,
+   onStreamAuthError()           ┘                                                   otherwise a critical error (e.g. SeonStreamAuthException)
 
-| Scenario | Auto-tagged? | Name source | Example | Notes |
-|---|--------------|---|---|---|
-| Activity (Legacy Views) | Yes          | Fully qualified class name | `com.example.CheckoutActivity` | Override with `tagActivity()`. |
-| Fragment (Legacy Views) | Yes          | Fully qualified class name | `com.example.PaymentFragment` | Override with `tagFragment()`. Only leaf fragments (no child fragments) generate events. |
-| Compose navigation route | No           | Route name from the navigation graph | `"checkout"`, `"profile/{id}"` | You must call `setComposeNavController()` to enable route tracking. Without it, Compose screen transitions are not captured. |
+   (new)                         →   onStreamError(SeonStreamNonCriticalException)   errors that do not stop the stream, or occur on start
+   ```
+4. **Update your exception handling.** Several exceptions are removed or renamed, see [Error Handling](#error-handling) for the full list:
+   ```
+   SeonStreamConfigurationException  →  SeonStreamInternalException         tagging, listener calls (try-catch)
+                                     →  SeonStreamSessionConfigException     invalid session config (onStreamError)
+   SeonStreamStopException           →  SeonStreamNotRunningException        no running session (onStreamError)
+                                     →  SeonStreamFinishException            internal stop error (onStreamFinished)
+   SeonStreamCustomEventException    →  SeonStreamCustomEventInvalidException
+   SeonStreamTimeoutException        →  SeonStreamSessionTimeoutException
+   ```
+   `finishStream()` no longer throws.
+5. **Rename the `SeonFeatureConfig` options**, if you use a custom config:
+   ```
+   withActivityTrackerEnabled()  →  withAutomaticScreenTrackingEnabled()
+   withInputTrackerEnabled()     ┐
+                                 ├→  withAutomaticViewTrackingEnabled()
+   withTouchTrackerEnabled()     ┘
+   ```
+   Input and touch tracking can no longer be switched off separately.
+6. **Do not rely on automatic Fragment, modal and dialog tracking.** Only Activity changes are tracked automatically. To report other screens, disable automatic screen tracking and call `changeScreen()` for **all** screens, see [Manual tracking](#manual-tracking).
 
-### UI element auto-tagging
-
-| Scenario | Auto-tagged? | Name source               | Example | Notes |
-|---|---|---------------------------|--|---|
-| Legacy View with `android:id` | Yes | XML resource entry name   | `submit_button` from `android:id="@+id/submit_button"` | Override with `tagViewElement()`. |
-| Legacy View **without** `android:id` | No | Appears as `UNKNOWN`      | `UNKNOWN` | Assign an `android:id` in XML or call `tagViewElement()`. |
-| Compose element with `Modifier.testTag()` | Yes | `testTag` value           | `"pay-btn"` from `Modifier.testTag("pay-btn")` | Best option for stable, meaningful names. |
-| Compose element with `contentDescription` | Yes | `contentDescription` value | `"Submit order"` from `Modifier.semantics { contentDescription = "Submit order" }` | Used when no `testTag` is set. |
-| Compose `Text()` element | Yes | Text content (truncated)  | `"Welcome back, John"` from `Text("Welcome back, John")` | Used when neither `testTag` nor `contentDescription` is set. |
-| Compose element with none of the above | No | - | "" | Add a `testTag` or `contentDescription` for the element to appear with a name. |
-
-### Input tracking
-
-| Scenario | Tracked? | Notes |
-|---|---|---|
-| `EditText` (Legacy Views) | Yes | Focus, typing characteristics, copy/paste/cut, and drag-and-drop are captured. |
-| Custom input views (not extending `EditText`) | No | Only `EditText` instances are detected by the legacy input strategy. |
-| Compose text fields (`TextField`, `OutlinedTextField`) | Yes | Tracked via the Compose semantics tree. |
-| Compose custom `Canvas`-based input | No | Elements that do not expose semantics properties are invisible to the SDK. |
-
-### Touch tracking
-
-| Scenario | Tracked? | Notes |
-|---|---|---|
-| Legacy Views — clickable views | Yes | Touch events are captured via `View.OnTouchListener` wrapping. |
-| Legacy Views — non-clickable views | No | Only views where `isClickable() == true` are tracked. |
-| Compose elements | Yes | Touch events are captured via `Window.Callback` wrapping and resolved against the semantics tree. |
-
----
+</details>
 
 ## Changelog
+### 2.0.0
+
+> ⚠️ **Breaking changes.** See [Migrating from 1.x to 2.0](#migrating-from-1x-to-20)
+
+- Added `SeonFeatureConfig` to turn automatic screen and UI tracking on or off, SDK can be initialized with this object
+- Added manual screen tracking with `changeScreen()`
+- Added manual UI element tracking with `tagViewElement()` and `Modifier.seonTagView()`
+- Added optional `SeonElementType` to tagged elements
+- `SeonStream.initialize()` now returns the `SeonStream` instance as well
+- `SeonStreamListener` now has `onStreamStarted`, `onStreamFinished` and `onStreamError`
+- Added `SeonStreamCriticalException` and `SeonStreamNonCriticalException` error groups
+- Added `SeonStreamRateLimitException` when rate limit was hit
+- Removed fragment, modal and dialog from automatic screen tracking
+- Fixed touch and typing related bugs
+
 ### 1.3.2
 - Fixed minor internal bugs
 
